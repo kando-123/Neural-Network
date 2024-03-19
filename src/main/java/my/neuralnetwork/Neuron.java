@@ -6,116 +6,109 @@ package my.neuralnetwork;
 
 import java.util.*;
 
-/**
- * Neuron. It holds a value and it stores backward and forward connections.
- * 
- * @author Kay Jay O'Nail
- */
 public class Neuron
 {
-    /**
-     * The current value of this neuron.
-     * 
-     * It is public to make the access quicker. Besides, it would need both
-     * setter and getter.
-     */
-    public double value;
-    
-    /**
-     * List of input connections.
-     */
+    private double inputValue;
+    private double outputValue;
     private final List<Connection> inputConnections;
-    
-    /**
-     * List of output connections.
-     */
     private final List<Connection> outputConnections;
-    
-    
     private double gradient;
-    
-    /**
-     * Constructor.
-     */
-    public Neuron()
+    private double bias;
+    private final double rate;
+
+    private static final Random random = new Random();
+
+    public Neuron(double learningRate)
     {
-        value = 1.0;
+        assert (learningRate > 0.0 && learningRate < 1.0);
+        
+        rate = learningRate;
+        bias = random.nextDouble(-1.0, +1.0);
         inputConnections = new ArrayList<>();
         outputConnections = new ArrayList<>();
     }
-    
-    /**
-     * Adds the connection to the list of input connections. Invoked only from
-     * the <code>Connection.joinNodes</code> method. (Impossible to be invoked
-     * elsewhere, since the connection cannot be created outside that method.)
-     * 
-     * @param connection 
-     */
+
     public void addInputConnection(Connection connection)
     {
         inputConnections.add(connection);
     }
-    
-    /**
-     * Adds the connection to the list of output connections. Invoked only from
-     * the <code>Connection.joinNodes</code> method. (Impossible to be invoked
-     * elsewhere, since the connection cannot be created outside that method.)
-     * 
-     * @param connection 
-     */
+
     public void addOutputConnection(Connection connection)
     {
         outputConnections.add(connection);
     }
     
-    /**
-     * Transfer function.
-     * 
-     * @param x
-     * @return hyperbolic tangent of x
-     */
+    public void setValue(double newValue)
+    {
+        inputValue = newValue;
+        outputValue = transferFunction(inputValue);
+    }
+    
+    public double getValue()
+    {
+        return outputValue;
+    }
+
     private static double transferFunction(double x)
     {
         return Math.tanh(x);
     }
-    
-    /**
-     * Transfer function derivative.
-     * 
-     * @param x
-     * @return derivative of hyperbolic tangent of x
-     */
+
     private static double transferDerivative(double x)
     {
         double y = Math.tanh(x);
         return 1.0 - y * y;
     }
-    
-    /**
-     * Computes <code>value</code> as transfer function of the sum of the values
-     * of the connections, i.e. the preceding neurons' <code>value</code>s times
-     * the <code>weight</code>s of the conenctions.
-     */
-    public void computeValue()
+
+    public void computeHiddenValue()
     {
-        double sum = 0.0;
+        inputValue = bias;
         for (var connection : inputConnections)
         {
-            sum += connection.getValue();
+            inputValue += connection.tail.getValue() * connection.weight;
         }
-        value = transferFunction(sum);
+        outputValue = transferFunction(inputValue);
     }
     
+    public void computeOutputValue()
+    {
+        inputValue = bias;
+        for (var connection : inputConnections)
+        {
+            inputValue += connection.tail.getValue() * connection.weight;
+        }
+        outputValue = inputValue;
+    }
+
     public void computeOutputGradient(double desiredOutput)
     {
-        
+        gradient = 2.0 * (outputValue - desiredOutput);
     }
-    
+
     public void computeHiddenGradient()
     {
-        
+        double sum = 0.0;
+        for (var connection : outputConnections)
+        {
+            sum += connection.head.getGradient() * connection.weight;
+        }
+        gradient = sum * transferDerivative(inputValue);
     }
     
+    public double getGradient()
+    {
+        return gradient;
+    }
+
+    public void updateInputs()
+    {
+        for (var connection : inputConnections)
+        {
+            connection.weight -= rate * gradient * connection.tail.getValue();
+        }
+        bias -= rate * gradient;
+    }
+
     @Override
     public String toString()
     {
@@ -130,7 +123,7 @@ public class Neuron
             description.append("\t (i) ")
                     .append(connection.toString())
                     .append("\n");
-            
+
         }
         for (var connection : outputConnections)
         {
@@ -138,7 +131,7 @@ public class Neuron
                     .append(connection.toString())
                     .append("\n");
         }
-        
+
         return description.toString();
     }
 }

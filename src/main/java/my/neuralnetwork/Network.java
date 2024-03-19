@@ -6,128 +6,116 @@ package my.neuralnetwork;
 
 import java.util.*;
 
-/**
- *
- * @author Kay Jay O'Nail
- */
 public class Network
 {
-    /**
-     * The list of the layers this network consists of.
-     */
     private final List<Layer> layers;
-    
-    /**
-     * Constructor.
-     * 
-     * @param sizes sizes of successive layers, from input through hidden to output
-     * @throws Exception if there are too few arguments (less than 2) or any of them is non-positive
-     */
-    public Network(int... sizes) throws Exception
-    {
-        if (sizes.length >= 2)
-        {
-            layers = new ArrayList<>(sizes.length);
-            boolean success = true;
-            for (var size : sizes)
-            {
-                if (size > 0)
-                {
-                    layers.add(new Layer(size));
-                }
-                else
-                {
-                    success = false;
-                    break;
-                }
-            }
-            if (success)
-            {
-                for (int i = 1; i < layers.size(); ++i)
-                {
-                    Layer previous = layers.get(i - 1);
-                    Layer current = layers.get(i);
-                    Layer.joinLayers(previous, current);
-                }
-            }
-            else
-            {
-                throw new Exception("Network.<init> : non-positive size of a layer");
-            }
-        }
-        else
-        {
-            throw new Exception("Network.<init> : too small number of layers");
-        }
-    }
-    
-    /**
-     * Assigns the neurons in the input layer with the values of
-     * <code>input</code> vector, and has the values of the neurons in the successive
-     * layers computed.
-     * 
-     * @param input
-     * @throws Exception 
-     */
-    public void propagateForward(List<Double> input) throws Exception
-    {
-        /* Initialize the input layer's neurons. */
-        layers.get(0).assign(input);
+    private final Layer inputLayer;
+    private final Layer outputLayer;
+    private final int inputSize;
+    private final int outputSize;
 
-        /* Let the neurons in further layers. */
+    public Network(List<Integer> topology, double learningRate)
+    {
+        assert (topology.size() > 1);
+
+        layers = new ArrayList<>(topology.size());
+        for (var size : topology)
+        {
+            assert (size > 0);
+
+            layers.add(new Layer(size, learningRate));
+        }
+        inputLayer = layers.get(0);
+        outputLayer = layers.get(layers.size() - 1);
+        inputSize = topology.get(0);
+        outputSize = topology.get(topology.size() - 1);
         for (int i = 1; i < layers.size(); ++i)
         {
-            layers.get(i).computeValues();
+            Layer previous = layers.get(i - 1);
+            Layer current = layers.get(i);
+            Layer.joinLayers(previous, current);
+        }
+    }
+
+    private void propagateForward(List<Double> input)
+    {
+        assert (input.size() == inputSize);
+        
+        inputLayer.assign(input);
+        for (int i = 1; i < layers.size() - 1; ++i)
+        {
+            layers.get(i).computeHiddenValues();
+        }
+        outputLayer.computeOutputValues();
+    }
+
+    private void propagateBackward(List<Double> desiredOutputs)
+    {
+        assert (desiredOutputs.size() == outputSize);
+        
+        outputLayer.computeOutputGradients(desiredOutputs);
+        for (int i = layers.size() - 2; i > 0; --i)
+        {
+            layers.get(i).computeHiddenGradients();
+        }
+        
+        for (int i = layers.size() - 1; i > 0; --i)
+        {
+            layers.get(i).updateInputs();
         }
     }
     
-    /**
-     * Getter for the output layer computing neurons' values.
-     * 
-     * @return list of output layer computing neurons' values
-     */
-    public List<Double> getResults()
+    public List<Double> computeFor(List<Double> input) throws Exception
     {
-        Layer outputLayer = layers.get(layers.size() - 1);
-        return outputLayer.export();
+        if (input.size() == inputSize)
+        {
+            propagateForward(input);
+            return outputLayer.exportValues();
+        }
+        else
+        {
+            throw new Exception("Network.computeFor : incompatible vectors");
+        }
+    }
+        
+    private void train(SingleTraining training) throws Exception
+    {
+        propagateForward(training.getInputs());
+        propagateBackward(training.getOutputs());
     }
     
-    // under development
-    public void propagateBackward(List<Double> desiredOutputs) throws Exception
+    public void trainSet(TrainingSet set, int epochsCount) throws Exception
     {
-        Layer outputLayer = layers.get(layers.size() - 1);
-        List<Double> currentOutputs = outputLayer.export();
-        
-        if (desiredOutputs != null && currentOutputs.size() == desiredOutputs.size())
+        if (set.getInputSize() == inputSize && set.getOutputSize() == outputSize)
         {
-            /* Calculate the RMS error. */
-            double aggregateError = outputLayer.calculateError(desiredOutputs);
-            
-            /* Calculate the gradients. */
-            outputLayer.computeOutputGradients(desiredOutputs);
-            for (int i = layers.size() - 2; i > 0; --i)
+            int count = 0;
+            while (count < epochsCount)
             {
-                layers.get(i).computeHiddenGradients();
+                if (set.epochHasPassed())
+                {
+                    ++count;
+                }
+                train(set.getNext());
             }
         }
         else
         {
-            throw new Exception("Network.propagateBackward : incompatible vectors");
+            throw new Exception("Network.trainSet : incompatible sizes");
         }
     }
-    
+
     @Override
     public String toString()
     {
         StringBuilder description = new StringBuilder();
         description.append("Network[")
                 .append(layers.size())
-                .append("]\n");
+                .append(" layers]\n");
         for (var layer : layers)
         {
             description.append(layer.toString());
         }
-        
+
         return description.toString();
     }
 }

@@ -15,16 +15,24 @@ public class Main
     {
         try
         {
-            Network network = new Network(2, 4, 1);
-            System.out.println(network.toString());
+            Network network = new Network(Arrays.asList(2, 4, 4, 1), 0.1);
             
-            network.propagateForward(Arrays.asList(1.0, 1.0));
-            var results = network.getResults();
-            System.out.println("Results:");
-            for (int i = 0; i < results.size(); ++i)
-            {
-                System.out.println("[%d] %f".formatted(i, results.get(i)));
-            }
+            TrainingSet training = new TrainingSet(2, 1);
+            training.add(Arrays.asList(0.0, 0.0), Arrays.asList(0.0));
+            training.add(Arrays.asList(0.0, 1.0), Arrays.asList(1.0));
+            training.add(Arrays.asList(1.0, 0.0), Arrays.asList(1.0));
+            training.add(Arrays.asList(1.0, 1.0), Arrays.asList(0.0));
+            
+            network.trainSet(training, 10_000);
+            var xor00 = network.computeFor(Arrays.asList(0.0, 0.0));
+            var xor01 = network.computeFor(Arrays.asList(0.0, 1.0));
+            var xor10 = network.computeFor(Arrays.asList(1.0, 0.0));
+            var xor11 = network.computeFor(Arrays.asList(1.0, 1.0));
+            
+            System.out.println("0 xor 0 = %f".formatted(xor00.get(0)));
+            System.out.println("0 xor 1 = %f".formatted(xor01.get(0)));
+            System.out.println("1 xor 0 = %f".formatted(xor10.get(0)));
+            System.out.println("1 xor 1 = %f".formatted(xor11.get(0)));
         }
         catch (Exception e)
         {
